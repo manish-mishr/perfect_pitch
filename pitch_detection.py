@@ -76,7 +76,7 @@ def gross_error(pitch_detection_result):
     true_time_freq = zip(true_time,true_freq)
     true_freq_filtered = filter_freq(predict_time,true_time_freq)
 
-    return sum((predict_freq-true_freq_filtered)>true_freq_filtered*1.2)/(len(predict_freq)+0.0)
+    return sum((abs(predict_freq-true_freq_filtered)>true_freq_filtered*0.2))/(len(predict_freq)+0.0)
 
 def write_output(output_path,filenames,gross_errors,types):
     output_file = os.path.join(output_path,'output.txt')
