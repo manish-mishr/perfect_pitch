@@ -11,3 +11,6 @@ MIREX 2016 papers & results(accuracies):http://www.music-ir.org/mirex/wiki/2016:
 
 Algorithms:
 In jupyter notebook tried YIN algorithm on MIREX05 datasets, results shown in green(predicted) and red(ground_truth) lines
+
+Data Directory for this project:
+https://drive.google.com/open?id=0By10fF78NlwcN1ZjUDBQWU1xbE0
