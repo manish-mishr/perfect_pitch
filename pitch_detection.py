@@ -4,7 +4,10 @@ import numpy as np
 import numpy,scipy, sklearn
 import librosa
 from aubio import source,pitch
+# import IPython.display #import when running in Jupyter notebook
 import matplotlib.pyplot as plt
+import pandas as pd
+import warnings
 
 def array_from_text_file(filename, dtype = 'float'):
     return array([line.split() for line in open(filename).readlines()],
@@ -73,13 +76,29 @@ def gross_error(pitch_detection_result):
     predict_freq = np.array(predict_freq)
     true_time,true_freq = pitch_detection_result[1]
     true_freq.mask = ma.nomask
+    true_freq_filtered = true_freq[:]
+    predict_freq_filtered = [predict_freq[0]]
+    predict_freq_filtered.extend([predict_freq[i] for i in range(1,len(predict_time)) if predict_time[i]!= predict_time[i-1] and predict_time[i]<=true_time[-1]])
+
     true_time_freq = zip(true_time,true_freq)
     true_freq_filtered = filter_freq(predict_time,true_time_freq)
 
-    return sum((abs(predict_freq-true_freq_filtered)>true_freq_filtered*0.2))/(len(predict_freq)+0.0)
+    return sum((abs(predict_freq_filtered-true_freq_filtered)>true_freq_filtered*0.2))/(len(predict_freq_filtered)+0.0)
 
-def write_output(output_path,filenames,gross_errors,types):
-    output_file = os.path.join(output_path,'output.txt')
+def write_output(output_path,output_filename,filenames,gross_errors):
+    output_file = os.path.join(output_path,output_filename)
+    if not os.path.isfile(output_file):
+        print 'writing output file',output_file
+        with open(output_file, 'a') as f:
+            for i in range(len(filenames)):
+                name,error = filenames[i],gross_errors[i]
+                f.write(str(name)+'\t'+str(error)+'\n')
+        f.close()
+    else:
+        print 'output already exist. no need to write'
+
+def write_output2(output_path,output_filename,filenames,gross_errors,types):
+    output_file = os.path.join(output_path,output_filename)
     if not os.path.isfile(output_file):
         print 'writing output file',output_file
         with open(output_file, 'a') as f:
@@ -89,16 +108,52 @@ def write_output(output_path,filenames,gross_errors,types):
         f.close()
     else:
         print 'output already exist. no need to write'
-
-wav_path = "MIR-1K_for_MIREX/results/"
+# do pitch detection using YIN directly
+wav_path = "MIR-1K_for_MIREX/Wavfile/"
 truth_path = 'MIR-1K_for_MIREX/PitchLabel/'
 
-sr = 22050
+sr = 44100
 downsample = 1
 win_s = 2048 // downsample # fft size
 hop_s = 1024  // downsample # hop size
 tolerance = 0.85
 pitch_method='yin'
+
+warnings.filterwarnings('ignore')
+
+filenames,gross_errors = [],[]
+count = 0
+for file in os.listdir(wav_path):
+    if file.endswith(".wav"): # find all files ending in wav
+        count += 1
+        if count % 500 == 0:
+            print count
+        file_path = os.path.join(wav_path,file)
+        file_head = file.split('.')[0]
+
+        truth_file = os.path.join(truth_path,file_head+'.pv') # organize ground truth file names
+
+        result = pitch_detection(file_path,sr,truth_file,win_s,hop_s,downsample,tolerance,pitch_method,draw=False)
+        error = gross_error(result)
+        filenames.append(file)
+        gross_errors.append(error)
+
+write_output('MIR-1K_for_MIREX','output.txt',filenames,gross_errors)
+data = pd.read_table("MIR-1K_for_MIREX/output.txt",names=['filename','gross_error'])
+print 'Average error of YIN only:',data.gross_error.mean()
+
+# do pitch detection using separation results from deep learning model, then YIN
+wav_path = "MIR-1K_for_MIREX/results/"
+truth_path = 'MIR-1K_for_MIREX/PitchLabel/'
+
+sr = 44100
+downsample = 1
+win_s = 2048 // downsample # fft size
+hop_s = 1024  // downsample # hop size
+tolerance = 0.85
+pitch_method='yin'
+
+warnings.filterwarnings('ignore')
 
 filenames,gross_errors = [],[]
 count = 0
@@ -111,11 +166,14 @@ for file in os.listdir(wav_path):
         file_head = '_'.join(file.split('_')[:3])
 
         truth_file = os.path.join(truth_path,file_head+'.pv') # organize ground truth file names
-        print file
+
         result = pitch_detection(file_path,sr,truth_file,win_s,hop_s,downsample,tolerance,pitch_method,draw=False)
         error = gross_error(result)
         filenames.append(file)
         gross_errors.append(error)
 
 types = map(lambda x:x.split('_')[-2],filenames)
-write_output("MIR-1K_for_MIREX",filenames,gross_errors,types)
+write_output2('MIR-1K_for_MIREX','output_source_separation.txt',filenames,gross_errors,types)
+
+data = pd.read_table('MIR-1K_for_MIREX/output_source_separation.txt',names=['filename','gross_error','mask_type'])
+print 'Average error of source separation+YIN:',data.gross_error.mean()
