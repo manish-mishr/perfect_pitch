@@ -1,5 +1,8 @@
 # perfect_pitch
 
+Read the Perfect_pitch report for detailed description about this project.
+
+
 
 References : https://github.com/TakefiveInteractive/Singularity
 
